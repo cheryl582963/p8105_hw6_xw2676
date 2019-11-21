@@ -119,6 +119,7 @@ According to the plot and table above, we can see that the rmse of the model 1 i
 ## Problem 2
 
 ```{r}
+set.seed(10)
 weather_df = 
   rnoaa::meteo_pull_monitors(
     c("USW00094728"),
@@ -130,7 +131,7 @@ weather_df =
     tmin = tmin / 10,
     tmax = tmax / 10) %>%
   select(name, id, everything())
-
+set.seed(10)
 boot_weather = weather_df %>% 
   modelr::bootstrap(n = 5000) %>% 
   mutate(
@@ -155,13 +156,17 @@ ggplot(aes(x = r_squared), data = boot_weather) +
   labs(
     x = expression(""~r^2~""),
     title = expression("Distribution of "~r^2~""))
+```
 
+According to the plot, we can see that the distribution of r_square and log_b0_b1 are slightly left-skewed normal distribution.
+
+
+```{r}
 r_square_interval = quantile(pull(boot_weather, r_squared), c(0.025,0.975))
 log_b0_b1_interval = quantile(pull(boot_weather, log_b0_b1), c(0.025,0.975))
 rbind(r_square_interval, log_b0_b1_interval) %>% 
   knitr::kable(format = "html", align = 'c', caption = "95% confidence interval for estimates")
 ```
-
 
 
 
