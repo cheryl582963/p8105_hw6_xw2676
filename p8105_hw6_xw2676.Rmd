@@ -41,7 +41,7 @@ birthweight = read_csv("./dataset/birthweight.csv") %>%
 
 ### Propose a regression model for birthweight. 
 
-I'd like to choose baby’s head circumference at birth, baby’s length at birth, gestational age in weeks and baby' sex as predictors. The reason is that if the baby has larger head, longer length, higher gestational age, it's more likely that the baby is more heavier. And male neonates are likely to be heavier than female neonates.
+I'd like to build the model by anova test. 
 
 ```{r}
 ## add total variables as predictors
@@ -100,7 +100,7 @@ cv_df_rmse = cv_df %>%
     names_prefix = "rmse_") %>% 
   mutate(model = fct_inorder(model)) 
 cv_df_rmse %>% 
-  ggplot(aes(x = model, y = rmse)) + geom_violin() +
+  ggplot(aes(x = model, y = rmse, fill = model)) + geom_violin() +
 labs(
   x = "model",
   y = "rmse",
@@ -116,6 +116,51 @@ cv_df_rmse %>%
 
 According to the plot and table above, we can see that the rmse of the model 1 is superior than the other two model. 
 
+## Problem 2
+
+```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+
+boot_weather = weather_df %>% 
+  modelr::bootstrap(n = 5000) %>% 
+  mutate(
+    models = map(strap, ~lm(tmax ~ tmin, data = .x) ),
+    results_1 = map(models, broom::tidy),
+    results_2 = map(models, broom::glance)) %>% 
+  select(-strap, -models) %>% 
+  mutate(
+    log_b0_b1 = map_dbl(results_1, ~.x %>% pull(estimate) %>% prod %>% log),
+    r_squared = map_dbl(results_2, ~.x %>% pull(r.squared) )
+  ) 
+
+ggplot(aes(x = log_b0_b1), data = boot_weather) +
+  geom_density(fill = "lightblue") +
+  labs(
+    x = expression("log("~hat(beta)[0]~"*"~hat(beta)[1]~")"),
+    title = expression("Distribution of log("~hat(beta)[0]~"*"~hat(beta)[1]~")")
+  )
+
+ggplot(aes(x = r_squared), data = boot_weather) +
+  geom_density(fill = "lightblue") +
+  labs(
+    x = expression(""~r^2~""),
+    title = expression("Distribution of "~r^2~""))
+
+r_square_interval = quantile(pull(boot_weather, r_squared), c(0.025,0.975))
+log_b0_b1_interval = quantile(pull(boot_weather, log_b0_b1), c(0.025,0.975))
+rbind(r_square_interval, log_b0_b1_interval) %>% 
+  knitr::kable(format = "html", align = 'c', caption = "95% confidence interval for estimates")
+```
 
 
 
