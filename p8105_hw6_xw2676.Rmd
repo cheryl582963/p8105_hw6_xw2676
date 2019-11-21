@@ -4,6 +4,133 @@ output: github_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      fig.width = 8,
+                      fig.height = 6,
+                      out.width = "90%")
+library(tidyverse)
+library(ggridges)
+library(rvest)
+library(modelr)
+library(mgcv)
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+
 ```
+
+## load and tidy the data
+
+```{r}
+birthweight = read_csv("./dataset/birthweight.csv") %>% 
+  janitor::clean_names() %>% 
+  drop_na() %>% 
+  mutate(
+    babysex = factor(as.factor(babysex), levels = c(1,2), labels = c("male", "female")),
+    frace = factor(as.factor(frace), levels = c(1,2,3,4,8,9), labels = c("white", "black", "asian", "puerto_rican", "other", "unknown")),
+    malform = factor(as.factor(malform), levels = c(0,1), labels = c("absent", "present")),
+    mrace = factor(as.factor(mrace), levels = c(1,2,3,4,8,9), labels = c("white", "black", "asian", "puerto_rican", "other", "unknown"))
+  )
+```
+
+## Problem1
+
+### Propose a regression model for birthweight. 
+
+I'd like to choose baby’s head circumference at birth, baby’s length at birth, gestational age in weeks and baby' sex as predictors. The reason is that if the baby has larger head, longer length, higher gestational age, it's more likely that the baby is more heavier. And male neonates are likely to be heavier than female neonates.
+
+```{r}
+## add total variables as predictors
+fit1_1 = lm(bwt~babysex+bhead+blength+delwt+fincome+frace+gaweeks+malform+menarche+mheight+momage+mrace+parity+pnumlbw+pnumsga+ppbmi+ppwt+smoken+wtgain, data = birthweight)
+## use anova to check significance of every variable
+anova(fit1_1)
+## delete variables that are not significant
+fit1_2 = lm(bwt~babysex+bhead+blength+delwt+fincome+frace+gaweeks+mheight+parity+pnumlbw+pnumsga+ppbmi+smoken+wtgain, data = birthweight)
+## check again
+anova(fit1_2)
+## delete variables that are not significant
+fit1 = lm(bwt~babysex+bhead+blength+delwt+fincome+frace+gaweeks+pnumlbw+pnumsga+ppbmi+smoken, data = birthweight)
+## check again
+anova(fit1)
+## done!
+birthweight_model = modelr::add_residuals(birthweight, fit1) %>% 
+  modelr::add_predictions(., fit1) 
+ggplot(aes(x = pred, y = resid), data = birthweight_model) +
+  geom_point() +
+  geom_smooth(method = lm) +
+labs(
+  x = "fitted values",
+  y = "residuals",
+  title = "model residuals against fitted values"
+) +
+ geom_hline(yintercept = 0,col = "red",linetype = "dashed")
+```
+
+### Compare your model to two other
+
+```{r}
+fit2 = lm(bwt~blength+gaweeks, data = birthweight)
+summary(fit2)
+fit3 = lm(bwt~bhead+blength+babysex+bhead*blength+blength*babysex+babysex*bhead+bhead*blength*babysex, data = birthweight)
+summary(fit3)
+cv_df = crossv_mc(birthweight, 100)
+cv_df =
+  cv_df %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+cv_df = 
+  cv_df %>% 
+  mutate(fit1  = map(train, ~lm(bwt~babysex+bhead+blength+delwt+fincome+frace+gaweeks+pnumlbw+pnumsga+ppbmi+smoken, data = .x)),
+         fit2  = map(train, ~lm(bwt~blength+gaweeks, data = .x)),
+         fit3  = map(train, ~lm(bwt~bhead+blength+babysex+bhead*blength+blength*babysex+babysex*bhead+bhead*blength*babysex, data = .x))) %>% 
+  mutate(rmse_fit1 = map2_dbl(fit1, test, ~rmse(model = .x, data = .y)),
+         rmse_fit2 = map2_dbl(fit2, test, ~rmse(model = .x, data = .y)),
+         rmse_fit3 = map2_dbl(fit3, test, ~rmse(model = .x, data = .y)))
+cv_df_rmse = cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") %>% 
+  mutate(model = fct_inorder(model)) 
+cv_df_rmse %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin() +
+labs(
+  x = "model",
+  y = "rmse",
+  title = "prediction error distributions of each model"
+) 
+cv_df_rmse %>% 
+  group_by(model) %>% 
+  summarise(
+    mean_rmse = mean(rmse)
+  ) %>% 
+  knitr::kable(format = "html", align = 'c')
+```
+
+According to the plot and table above, we can see that the rmse of the model 1 is superior than the other two model. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
