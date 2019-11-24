@@ -41,21 +41,17 @@ birthweight = read_csv("./dataset/birthweight.csv") %>%
 
 ### Propose a regression model for birthweight. 
 
-I'd like to build the model by anova test. 
+I'd like to build the model by the following steps. First add all variables to the model, use test to check the significance of the variables, and then delete the variables that are not significant. 
 
 ```{r}
 ## add total variables as predictors
 fit1_1 = lm(bwt~babysex+bhead+blength+delwt+fincome+frace+gaweeks+malform+menarche+mheight+momage+mrace+parity+pnumlbw+pnumsga+ppbmi+ppwt+smoken+wtgain, data = birthweight)
 ## use anova to check significance of every variable
-anova(fit1_1)
-## delete variables that are not significant
-fit1_2 = lm(bwt~babysex+bhead+blength+delwt+fincome+frace+gaweeks+mheight+parity+pnumlbw+pnumsga+ppbmi+smoken+wtgain, data = birthweight)
+summary(fit1_1)
+## delete variables that are not significant(fincome, frace, malform, menarche, mheight, momage, mrace, pnumlbw, pnumsga, ppbmi, ppwt, wtgain)
+fit1 = lm(bwt~babysex+bhead+blength+delwt+gaweeks+parity+smoken, data = birthweight)
 ## check again
-anova(fit1_2)
-## delete variables that are not significant
-fit1 = lm(bwt~babysex+bhead+blength+delwt+fincome+frace+gaweeks+pnumlbw+pnumsga+ppbmi+smoken, data = birthweight)
-## check again
-anova(fit1)
+summary(fit1)
 ## done!
 birthweight_model = modelr::add_residuals(birthweight, fit1) %>% 
   modelr::add_predictions(., fit1) 
@@ -85,7 +81,7 @@ cv_df =
     test = map(test, as_tibble))
 cv_df = 
   cv_df %>% 
-  mutate(fit1  = map(train, ~lm(bwt~babysex+bhead+blength+delwt+fincome+frace+gaweeks+pnumlbw+pnumsga+ppbmi+smoken, data = .x)),
+  mutate(fit1  = map(train, ~lm(bwt~babysex+bhead+blength+delwt+gaweeks+parity+smoken, data = .x)),
          fit2  = map(train, ~lm(bwt~blength+gaweeks, data = .x)),
          fit3  = map(train, ~lm(bwt~bhead+blength+babysex+bhead*blength+blength*babysex+babysex*bhead+bhead*blength*babysex, data = .x))) %>% 
   mutate(rmse_fit1 = map2_dbl(fit1, test, ~rmse(model = .x, data = .y)),
